@@ -8,7 +8,7 @@
 
   let room = null, teacherKey = null, picks = [], unsub = null;
   let seen = new Set(), firstLoad = true, openRegion = null;
-  let geo = null, borders = null;
+  let borders = null;
 
   if (C.TITLE) { $("#title").textContent = C.TITLE; document.title = C.TITLE + " · 교사 화면"; }
 
@@ -56,7 +56,7 @@
       const fresh = list.filter((p) => !seen.has(p.id + p.updated_at));
       picks = list;
       render(firstLoad ? new Set() : new Set(fresh.map((p) => p.id)));
-      if (!firstLoad) fresh.forEach((p) => toast(p.nickname + " → " + (RBY[p.region] ? RBY[p.region].name : p.region)));
+      if (!firstLoad) fresh.forEach((p) => toast(p.nickname, RBY[p.region]));
       seen = new Set(list.map((p) => p.id + p.updated_at));
       firstLoad = false;
     } catch (e) {
@@ -154,10 +154,13 @@
   // ---------- 지도 ----------
   const svg = d3.select("#map");
   const measureCtx = document.createElement("canvas").getContext("2d");
-  function textW(t, size, font) {
-    measureCtx.font = size + "px " + (font || '"Noto Sans KR", sans-serif');
+  function textW(t, size, weight) {
+    measureCtx.font = (weight || 400) + " " + size + 'px "Noto Sans KR", sans-serif';
     return measureCtx.measureText(t).width;
   }
+  let land = null;
+  const MAIN = { type: "MultiPoint", coordinates: [[129.2, 30.9], [145.9, 45.6]] };   // 본토
+  const OKI = { type: "MultiPoint", coordinates: [[126.65, 25.95], [128.4, 26.95]] };  // 오키나와 인셋
 
   async function loadShape() {
     const sources = [
@@ -171,18 +174,20 @@
         if (!res.ok) continue;
         const topo = await res.json();
         if (kind === "world") {
-          const fc = topojson.feature(topo, topo.objects.countries);
-          geo = { type: "FeatureCollection", features: fc.features.filter((f) => String(f.id) === "392") };
+          const geoms = topo.objects.countries.geometries.filter((g) => String(g.id) === "392");
+          if (!geoms.length) continue;
+          land = topojson.merge(topo, geoms);
           borders = null;
         } else {
           const key = Object.keys(topo.objects)[0];
-          geo = topojson.feature(topo, topo.objects[key]);
+          land = topojson.merge(topo, topo.objects[key].geometries);
           borders = topojson.mesh(topo, topo.objects[key], (a, b) => a !== b);
         }
-        if (geo.features && geo.features.length) { drawMap(); return; }
+        drawMap();
+        return;
       } catch (e) { /* 다음 소스 시도 */ }
     }
-    $("#mapNote").textContent = "지도 모양을 불러오지 못했어요. 점과 이름표는 정상 표시됩니다.";
+    $("#mapNote").textContent = "지도 모양을 불러오지 못했어요. 핀과 이름표는 정상 표시됩니다.";
   }
 
   function drawMap() {
@@ -190,59 +195,112 @@
     const W = box.clientWidth, H = box.clientHeight;
     if (!W || !H) return;
     const narrow = W < 760;
-    const laneW = Math.round(narrow ? Math.max(118, W * 0.27) : Math.min(240, W * 0.21));
-    const pad = 12;
-    const proj = d3.geoMercator().fitExtent(
-      [[laneW + pad * 2, pad + 6], [W - laneW - pad * 2, H - pad - 6]],
-      { type: "MultiPoint", coordinates: [[127.4, 25.9], [145.9, 45.6]] }
-    );
+    const laneW = Math.round(narrow ? Math.max(118, W * 0.27) : Math.min(230, W * 0.2));
+    const pad = 14;
+    const proj = d3.geoMercator().fitExtent([[laneW + pad * 2, pad + 6], [W - laneW - pad * 2, H - pad - 6]], MAIN);
     const path = d3.geoPath(proj);
+    const [mx0, my0] = proj([129.2, 45.6]);
+    const [mx1, my1] = proj([145.9, 30.9]);
+    const iw = Math.max(120, (mx1 - mx0) * 0.3), ih = iw * 0.78;
+    const ix = mx1 - iw, iy = my1 - ih;
+    const iproj = d3.geoMercator().fitExtent([[ix + 14, iy + 28], [ix + iw - 14, iy + ih - 14]], OKI);
+    const ipath = d3.geoPath(iproj);
+    const at = (r) => (r.inset ? iproj : proj)([r.lon, r.lat]);
+    const depth = narrow ? 4 : 7;
+
     svg.attr("viewBox", "0 0 " + W + " " + H);
     svg.selectAll("*").remove();
 
-    if (geo) {
-      svg.append("g").selectAll("path").data(geo.features).join("path").attr("class", "land").attr("d", path);
-      if (borders) svg.append("path").attr("class", "pref").attr("d", path(borders));
+    // ----- defs : 빛, 그림자, 핀 구슬 -----
+    const defs = svg.append("defs");
+    const lg = defs.append("linearGradient").attr("id", "landTop").attr("x1", 0).attr("y1", 0).attr("x2", 1).attr("y2", 1);
+    [["0%", "#fffaf0"], ["50%", "#f4ecdc"], ["100%", "#ddcfb3"]].forEach(([o, c]) => lg.append("stop").attr("offset", o).attr("stop-color", c));
+    const blur = defs.append("filter").attr("id", "landShadow").attr("x", "-20%").attr("y", "-20%").attr("width", "140%").attr("height", "140%");
+    blur.append("feGaussianBlur").attr("stdDeviation", narrow ? 6 : 11);
+    const cs = defs.append("filter").attr("id", "cardShadow").attr("x", "-30%").attr("y", "-30%").attr("width", "160%").attr("height", "170%");
+    cs.append("feDropShadow").attr("dx", 0).attr("dy", 10).attr("stdDeviation", 12).attr("flood-color", "#000").attr("flood-opacity", .5);
+    for (const r of REGIONS) {
+      const rg = defs.append("radialGradient").attr("id", "pg-" + r.id).attr("cx", "35%").attr("cy", "30%").attr("r", "75%");
+      rg.append("stop").attr("offset", "0%").attr("stop-color", "#fff").attr("stop-opacity", .95);
+      rg.append("stop").attr("offset", "22%").attr("stop-color", d3.color(r.color).brighter(.6).formatHex());
+      rg.append("stop").attr("offset", "62%").attr("stop-color", r.color);
+      rg.append("stop").attr("offset", "100%").attr("stop-color", d3.color(r.color).darker(1.3).formatHex());
     }
+    if (land) {
+      defs.append("path").attr("id", "landM").attr("d", path(land));
+      defs.append("path").attr("id", "landI").attr("d", ipath(land));
+    }
+    defs.append("clipPath").attr("id", "insetClip").append("rect")
+      .attr("x", ix).attr("y", iy).attr("width", iw).attr("height", ih).attr("rx", 16);
 
+    // ----- 바다 격자 -----
+    svg.append("path").attr("class", "grat")
+      .attr("d", path(d3.geoGraticule().extent([[118, 18], [156, 52]]).step([2, 2])()));
+
+    // ----- 입체 지형 -----
+    const sideCol = d3.interpolateRgb("#cdb995", "#6f5d42");
+    function terrain(parent, ref, pth, d, shadowScale) {
+      if (!land) return;
+      const g = parent.append("g");
+      g.append("use").attr("href", ref).attr("fill", "#000").attr("opacity", .6)
+        .attr("filter", "url(#landShadow)").attr("transform", "translate(" + d * shadowScale + "," + d * 2.4 * shadowScale + ")");
+      for (let k = d; k >= 1; k--) g.append("use").attr("href", ref).attr("fill", sideCol(k / d)).attr("transform", "translate(0," + k + ")");
+      g.append("use").attr("href", ref).attr("fill", "url(#landTop)");
+      if (borders) g.append("path").attr("class", "pref").attr("d", pth(borders));
+      g.append("use").attr("href", ref).attr("class", "coast");
+    }
+    terrain(svg, "#landM", path, depth, 1);
+
+    // 나침반
+    const cp = svg.append("g").attr("class", "compass").attr("transform", "translate(" + (mx0 + 30) + "," + (my0 + 40) + ")");
+    cp.append("circle").attr("r", 17).attr("fill", "rgba(255,255,255,.03)").attr("stroke", "rgba(216,184,120,.45)");
+    cp.append("path").attr("d", "M0,-13L4,0L0,13L-4,0Z").attr("fill", "rgba(216,184,120,.35)");
+    cp.append("path").attr("d", "M0,-13L4,0L-4,0Z").attr("fill", "#d8b878");
+    cp.append("text").attr("y", -23).attr("text-anchor", "middle").text("N");
+
+    // 오키나와 인셋
+    const ins = svg.append("g");
+    ins.append("rect").attr("x", ix).attr("y", iy).attr("width", iw).attr("height", ih).attr("rx", 16)
+      .attr("fill", "rgba(6,20,30,.45)").attr("stroke", "rgba(216,184,120,.35)").attr("stroke-dasharray", "3 4");
+    const insIn = ins.append("g").attr("clip-path", "url(#insetClip)");
+    terrain(insIn, "#landI", ipath, Math.max(3, depth - 2), .6);
+    ins.append("text").attr("class", "inset-title").attr("x", ix + 14).attr("y", iy + 19).text("오키나와 · 확대");
+
+    // ----- 데이터 -----
     const g = grouped();
     const fs = narrow ? 12 : 14;
-    const rowH = fs + 10, headH = fs + 16, cpad = 8, gap = 8;
+    const rowH = fs + 11, headH = fs + 20, cpad = 10, gap = 10;
 
-    // 빈 지역: 작은 고리 + 이름
-    const pins = svg.append("g");
+    // 빈 지역: 땅 위의 작은 표식
+    const marks = svg.append("g");
     for (const r of REGIONS) {
       if (g.get(r.id).length) continue;
-      const [x, y] = proj([r.lon, r.lat]);
-      pins.append("circle").attr("cx", x).attr("cy", y).attr("r", 4.5)
-        .attr("fill", "#fff").attr("stroke", r.color).attr("stroke-width", 2);
+      const [x, y] = at(r);
+      marks.append("ellipse").attr("cx", x).attr("cy", y).attr("rx", 5).attr("ry", 2.4)
+        .attr("fill", r.color).attr("fill-opacity", .35).attr("stroke", d3.color(r.color).darker(1).formatHex()).attr("stroke-width", 1.2);
       const side = r.pin || "r";
-      pins.append("text").attr("class", "pin-label")
-        .attr("x", side === "l" ? x - 8 : (side === "b" || side === "t") ? x : x + 8)
-        .attr("y", side === "b" ? y + 18 : side === "t" ? y - 10 : y + 4)
+      marks.append("text").attr("class", "pin-label")
+        .attr("x", side === "l" ? x - 9 : (side === "b" || side === "t") ? x : x + 9)
+        .attr("y", side === "b" ? y + 17 : side === "t" ? y - 9 : y + 4)
         .attr("text-anchor", side === "l" ? "end" : (side === "b" || side === "t") ? "middle" : "start")
         .text(r.name);
     }
 
-    // 이름표 카드 배치 (좌/우 레인에 위→아래로 쌓기)
+    // 이름표 카드 배치 (좌/우 레인, 위→아래)
     const cards = [];
     for (const lane of ["L", "R"]) {
       const items = REGIONS.filter((r) => r.side === lane && g.get(r.id).length)
-        .map((r) => ({ r, p: proj([r.lon, r.lat]), list: g.get(r.id) }))
+        .map((r) => ({ r, p: at(r), list: g.get(r.id) }))
         .sort((a, b) => a.p[1] - b.p[1]);
       if (!items.length) continue;
       const n = items.length;
       const avail = H - pad * 2 - n * (headH + cpad * 2 + gap);
       const maxRows = Math.max(1, Math.min(8, Math.floor(avail / (n * rowH))));
       const inner = laneW - cpad * 2;
-
       for (const it of items) {
-        // 닉네임 칩 흐름 배치
-        const chipW = (t) => Math.ceil(textW(t, fs)) + 22;
         const placed = []; let row = 0, x = 0;
-        let i = 0;
-        for (; i < it.list.length; i++) {
-          const w = Math.min(inner, chipW(it.list[i].nickname));
+        for (let i = 0; i < it.list.length; i++) {
+          const w = Math.min(inner, Math.ceil(textW(it.list[i].nickname, fs)) + 24);
           if (x > 0 && x + w > inner) { row++; x = 0; }
           if (row >= maxRows) break;
           placed.push({ p: it.list[i], row, x, w });
@@ -250,11 +308,10 @@
         }
         let rest = it.list.length - placed.length;
         if (rest > 0) {
-          // 마지막 줄에 "+N명" 자리 확보
           let more = null;
           while (!more) {
             const label = "+" + rest + "명";
-            const w = Math.ceil(textW(label, fs)) + 14;
+            const w = Math.ceil(textW(label, fs, 700)) + 14;
             const last = placed[placed.length - 1];
             if (!last) { more = { label, row: 0, x: 0, w }; break; }
             const endX = last.x + last.w + 5;
@@ -266,12 +323,11 @@
         }
         it.chips = placed;
         it.rows = Math.max(1, ...placed.map((c) => c.row + 1), it.more ? it.more.row + 1 : 0);
-        it.h = headH + it.rows * rowH + cpad * 2 - 4;
+        it.h = headH + it.rows * rowH + cpad * 2 - 6;
         it.w = laneW;
         it.x = lane === "L" ? pad : W - pad - laneW;
         it.lane = lane;
       }
-      // 겹치지 않게 위→아래, 넘치면 아래→위로 밀기
       let bottom = pad;
       for (const it of items) { it.y = Math.max(it.p[1] - it.h / 2, bottom); bottom = it.y + it.h + gap; }
       let limit = H - pad;
@@ -284,54 +340,70 @@
       cards.push(...items);
     }
 
-    // 연결선
-    const lines = svg.append("g");
+    // 받침 원판 + 연결선
+    const pinR = narrow ? 4.2 : 5.8, pinH = narrow ? 11 : 16, spread = narrow ? 5 : 6.6;
+    const under = svg.append("g"), lines = svg.append("g");
     for (const c of cards) {
+      const rad = spread * Math.sqrt(Math.max(0, c.list.length - 1)) + pinR + 5;
+      under.append("ellipse").attr("cx", c.p[0]).attr("cy", c.p[1]).attr("rx", rad).attr("ry", rad * .45)
+        .attr("fill", c.r.color).attr("fill-opacity", .22).attr("stroke", c.r.color).attr("stroke-opacity", .7).attr("stroke-width", 1);
       const ex = c.lane === "L" ? c.x + c.w : c.x;
-      const ey = c.y + headH / 2 + 2;
-      const kx = ex + (c.lane === "L" ? 14 : -14);
+      const ey = c.y + cpad + headH / 2 - 3;
+      const kx = ex + (c.lane === "L" ? 16 : -16);
       lines.append("path").attr("d", "M" + ex + "," + ey + "L" + kx + "," + ey + "L" + c.p[0] + "," + c.p[1])
-        .attr("fill", "none").attr("stroke", c.r.color).attr("stroke-width", 1.6).attr("opacity", .75);
+        .attr("fill", "none").attr("stroke", c.r.color).attr("stroke-width", 1.3).attr("stroke-opacity", .9);
+      lines.append("circle").attr("cx", kx).attr("cy", ey).attr("r", 2.2).attr("fill", c.r.color);
     }
 
-    // 점 (해바라기 배열)
-    const dots = svg.append("g");
+    // 3D 핀 (바닥면을 납작하게 → 원근감, 뒤에서 앞으로 그리기)
+    const pins = [];
     for (const c of cards) {
       c.list.forEach((p, i) => {
-        const a = i * 2.39996, rr = 5.4 * Math.sqrt(i);
-        dots.append("circle")
-          .attr("class", "dot" + (newIds.has(p.id) ? " pop" : ""))
-          .attr("cx", c.p[0] + rr * Math.cos(a)).attr("cy", c.p[1] + rr * Math.sin(a))
-          .attr("r", narrow ? 4 : 5).attr("fill", c.r.color)
-          .append("title").text(p.nickname);
+        const a = i * 2.39996, rr = spread * Math.sqrt(i);
+        pins.push({ r: c.r, p, x: c.p[0] + rr * Math.cos(a), y: c.p[1] + rr * Math.sin(a) * .45 });
       });
     }
+    pins.sort((a, b) => a.y - b.y);
+    const pinG = svg.append("g");
+    for (const q of pins) {
+      pinG.append("ellipse").attr("cx", q.x + 1.5).attr("cy", q.y + .5).attr("rx", pinR * .85).attr("ry", pinR * .32)
+        .attr("fill", "#000").attr("opacity", .35);
+      const one = pinG.append("g").attr("class", "pin" + (newIds.has(q.p.id) ? " pop" : ""));
+      one.append("line").attr("x1", q.x).attr("y1", q.y).attr("x2", q.x).attr("y2", q.y - pinH)
+        .attr("stroke", d3.color(q.r.color).darker(1.6).formatHex()).attr("stroke-width", 1.7).attr("stroke-linecap", "round");
+      one.append("circle").attr("cx", q.x).attr("cy", q.y - pinH).attr("r", pinR)
+        .attr("fill", "url(#pg-" + q.r.id + ")").attr("stroke", "rgba(0,0,0,.25)").attr("stroke-width", .6);
+      one.append("title").text(q.p.nickname + " · " + q.r.name);
+    }
 
-    // 카드
+    // 유리 질감 이름표 카드
     const cg = svg.append("g");
     for (const c of cards) {
       const g1 = cg.append("g").attr("transform", "translate(" + c.x + "," + c.y + ")");
-      g1.append("rect").attr("width", c.w).attr("height", c.h).attr("rx", 12)
-        .attr("fill", "#fff").attr("stroke", c.r.color).attr("stroke-width", 1.6);
-      g1.append("circle").attr("cx", cpad + 6).attr("cy", cpad + headH / 2 - 2).attr("r", 6).attr("fill", c.r.color);
-      g1.append("text").attr("class", "card-name").attr("x", cpad + 17).attr("y", cpad + headH / 2 + fs * 0.38)
-        .attr("font-size", fs + 3).attr("fill", "#13222a").text(c.r.name);
-      g1.append("text").attr("x", c.w - cpad).attr("y", cpad + headH / 2 + fs * 0.38).attr("text-anchor", "end")
-        .attr("font-size", fs + 1).attr("font-weight", 700).attr("fill", c.r.color).text(c.list.length + "명");
-      const top0 = cpad + headH;
+      g1.append("rect").attr("width", c.w).attr("height", c.h).attr("rx", 14)
+        .attr("fill", "rgba(9,27,39,.88)").attr("stroke", "rgba(255,255,255,.13)").attr("filter", "url(#cardShadow)");
+      g1.append("rect").attr("x", 1).attr("y", 1).attr("width", c.w - 2).attr("height", headH + cpad - 4).attr("rx", 13)
+        .attr("fill", c.r.color).attr("fill-opacity", .07);
+      const hy = cpad + headH / 2 - 3;
+      g1.append("circle").attr("cx", cpad + 7).attr("cy", hy).attr("r", 7).attr("fill", "url(#pg-" + c.r.id + ")");
+      g1.append("text").attr("class", "card-name").attr("x", cpad + 21).attr("y", hy + fs * .4)
+        .attr("font-size", fs + 3).attr("fill", "#f6f1e6").text(c.r.name);
+      g1.append("text").attr("x", c.w - cpad).attr("y", hy + fs * .4).attr("text-anchor", "end")
+        .attr("class", "card-name").attr("font-size", fs + 4).attr("fill", c.r.color).text(c.list.length + "명");
+      const top0 = cpad + headH - 2;
       for (const ch of c.chips) {
-        const cy = top0 + ch.row * rowH;
+        const cy = top0 + ch.row * rowH, hh = rowH - 5;
         const isNew = newIds.has(ch.p.id);
-        g1.append("rect").attr("x", cpad + ch.x).attr("y", cy).attr("width", ch.w).attr("height", rowH - 4).attr("rx", (rowH - 4) / 2)
-          .attr("fill", c.r.color).attr("fill-opacity", isNew ? .28 : .12);
-        g1.append("circle").attr("cx", cpad + ch.x + 9).attr("cy", cy + (rowH - 4) / 2).attr("r", 3.5).attr("fill", c.r.color);
-        const label = fitText(ch.p.nickname, ch.w - 22, fs);
-        g1.append("text").attr("x", cpad + ch.x + 16).attr("y", cy + (rowH - 4) / 2 + fs * 0.36)
-          .attr("font-size", fs).attr("fill", "#13222a").text(label);
+        g1.append("rect").attr("x", cpad + ch.x).attr("y", cy).attr("width", ch.w).attr("height", hh).attr("rx", hh / 2)
+          .attr("fill", c.r.color).attr("fill-opacity", isNew ? .38 : .15)
+          .attr("stroke", c.r.color).attr("stroke-opacity", isNew ? .9 : .3);
+        g1.append("circle").attr("cx", cpad + ch.x + 10).attr("cy", cy + hh / 2).attr("r", 3.3).attr("fill", c.r.color);
+        g1.append("text").attr("x", cpad + ch.x + 18).attr("y", cy + hh / 2 + fs * .36)
+          .attr("font-size", fs).attr("fill", "#f6f1e6").text(fitText(ch.p.nickname, ch.w - 24, fs));
       }
       if (c.more) {
         const cy = top0 + c.more.row * rowH;
-        g1.append("text").attr("x", cpad + c.more.x + 6).attr("y", cy + (rowH - 4) / 2 + fs * 0.36)
+        g1.append("text").attr("x", cpad + c.more.x + 6).attr("y", cy + (rowH - 5) / 2 + fs * .36)
           .attr("font-size", fs).attr("font-weight", 700).attr("fill", c.r.color).text(c.more.label);
       }
     }
@@ -347,11 +419,18 @@
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => drawMap());
 
   // ---------- UI ----------
-  function toast(msg) {
+  function toast(msg, region) {
     const t = document.createElement("div");
-    t.className = "toast"; t.textContent = msg;
+    t.className = "toast";
+    if (region) {
+      const dot = document.createElement("i");
+      dot.style.background = region.color;
+      const em = document.createElement("em");
+      em.textContent = "→ " + region.name;
+      t.append(dot, document.createTextNode(msg), em);
+    } else t.textContent = msg;
     $("#toasts").append(t);
-    setTimeout(() => t.remove(), 3500);
+    setTimeout(() => t.remove(), 3800);
     while ($("#toasts").children.length > 4) $("#toasts").firstChild.remove();
   }
   function ask(title, text) {
