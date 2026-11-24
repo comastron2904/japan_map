@@ -60,7 +60,7 @@
     try {
       await api.submitPick(room, clientId, n, r.id);
       U.ls("jt_nick", n);
-      $("#doneBadge").style.background = r.color;
+      $("#doneView").style.setProperty("--c", r.color);
       $("#doneBadge").textContent = r.name;
       $("#doneTitle").textContent = n + " 님은 " + r.name + "!";
       $("#formView").hidden = true;
