@@ -6,17 +6,17 @@
 <title>일본 여행지 지도 · 교사 화면</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
 </head>
-<body>
+<body class="t">
 <div class="teacher">
   <header class="top">
     <div class="brand">
       <div class="sun" aria-hidden="true"></div>
       <div>
         <h1 id="title">우리 반 일본 여행지 지도</h1>
-        <small>방 코드 <b id="roomCode">-----</b> · <span id="status" class="status">연결 중…</span></small>
+        <div class="meta"><span>방 코드 <b id="roomCode">-----</b></span><span id="status" class="status">연결 중…</span></div>
       </div>
     </div>
     <div class="actions">
@@ -30,12 +30,7 @@
   <main class="stage">
     <section class="mapBox" id="mapBox" aria-label="일본 지도와 학생 선택">
       <svg id="map" role="img" aria-label="학생들이 고른 지역이 점과 닉네임으로 표시된 일본 지도"></svg>
-      <div class="empty" id="empty">
-        <div>
-          <div class="display">아직 아무도 고르지 않았어요</div>
-          <p>위의 <b>여행지 선택</b> 버튼을 눌러 QR 코드를 보여 주세요.</p>
-        </div>
-      </div>
+      <p class="emptyPill" id="empty">아직 아무도 고르지 않았어요 · <b>여행지 선택</b>을 눌러 QR을 보여 주세요</p>
       <p class="mapNote" id="mapNote"></p>
     </section>
 
@@ -44,7 +39,7 @@
         <div class="stat"><b id="total">0</b><span>참여한 학생</span></div>
         <div class="stat"><b id="top">-</b><span>가장 인기 있는 곳</span></div>
       </div>
-      <h2>지역별 인원</h2>
+      <h2>지역별 인원 <small>많은 순</small></h2>
       <ul class="rank" id="rank"></ul>
       <p class="hint" id="hint">지역을 누르면 고른 학생 이름이 펼쳐져요.</p>
     </aside>
@@ -53,8 +48,9 @@
 
 <dialog id="qrDlg">
   <div class="dlg">
-    <h2>QR을 찍고 여행지를 골라요!</h2>
-    <p>휴대폰 카메라로 찍으면 선택 화면이 열려요</p>
+    <div class="eyebrow">휴대폰 카메라로 찍어 주세요</div>
+    <h2>어디로 떠나고 싶나요?</h2>
+    <p>QR을 찍고 닉네임과 여행지를 고르면 지도에 내 핀이 꽂혀요</p>
     <div class="qr" id="qr"></div>
     <div class="code" id="qrCode"></div>
     <div class="url" id="qrUrl"></div>
