@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>여행지 고르기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main class="student">
+  <div class="stu-top">
+    <div class="sun" aria-hidden="true"></div>
+    <div>
+      <h1>어디로 가고 싶나요?</h1>
+      <small>방 코드 <b id="roomCode">-----</b></small>
+    </div>
+  </div>
+  <p class="demo-banner" id="demoBanner" hidden>데모 모드예요. 선생님 화면과 같은 브라우저에서만 반영돼요.</p>
+
+  <section id="formView" hidden>
+    <form id="form" novalidate>
+      <div class="field">
+        <label for="nick">닉네임</label>
+        <input id="nick" maxlength="12" autocomplete="off" placeholder="선생님 화면에 보일 이름" required>
+        <div class="count"><span id="nickCount">0</span>/12</div>
+      </div>
+      <h2>가고 싶은 지역 하나를 골라요</h2>
+      <div class="grid" id="grid" role="group" aria-label="지역 선택"></div>
+      <div class="sticky">
+        <button class="btn primary" id="submit" type="submit" disabled>닉네임과 지역을 골라 주세요</button>
+        <p class="err" id="err" role="alert"></p>
+      </div>
+    </form>
+  </section>
+
+  <section id="doneView" class="done" hidden>
+    <div class="big" id="doneBadge"></div>
+    <h2 id="doneTitle"></h2>
+    <p>선생님 화면의 지도에 내 점이 찍혔어요!</p>
+    <button class="btn" id="again">다시 고르기</button>
+  </section>
+
+  <section id="badView" class="done" hidden>
+    <h2>방을 찾을 수 없어요</h2>
+    <p id="badText">선생님 화면의 QR 코드를 다시 찍어 주세요.</p>
+  </section>
+</main>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/regions.js"></script>
+<script src="assets/api.js"></script>
+<script src="assets/student.js"></script>
+</body>
+</html>

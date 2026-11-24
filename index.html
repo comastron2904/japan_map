@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>일본 여행지 지도 · 교사 화면</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="teacher">
+  <header class="top">
+    <div class="brand">
+      <div class="sun" aria-hidden="true"></div>
+      <div>
+        <h1 id="title">우리 반 일본 여행지 지도</h1>
+        <small>방 코드 <b id="roomCode">-----</b> · <span id="status" class="status">연결 중…</span></small>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="qrBtn">여행지 선택</button>
+      <button class="btn" id="fsBtn">전체 화면</button>
+      <button class="btn ghost" id="clearBtn" hidden>초기화</button>
+      <button class="btn ghost" id="newBtn">새 방</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <section class="mapBox" id="mapBox" aria-label="일본 지도와 학생 선택">
+      <svg id="map" role="img" aria-label="학생들이 고른 지역이 점과 닉네임으로 표시된 일본 지도"></svg>
+      <div class="empty" id="empty">
+        <div>
+          <div class="display">아직 아무도 고르지 않았어요</div>
+          <p>위의 <b>여행지 선택</b> 버튼을 눌러 QR 코드를 보여 주세요.</p>
+        </div>
+      </div>
+      <p class="mapNote" id="mapNote"></p>
+    </section>
+
+    <aside class="side">
+      <div class="stats">
+        <div class="stat"><b id="total">0</b><span>참여한 학생</span></div>
+        <div class="stat"><b id="top">-</b><span>가장 인기 있는 곳</span></div>
+      </div>
+      <h2>지역별 인원</h2>
+      <ul class="rank" id="rank"></ul>
+      <p class="hint" id="hint">지역을 누르면 고른 학생 이름이 펼쳐져요.</p>
+    </aside>
+  </main>
+</div>
+
+<dialog id="qrDlg">
+  <div class="dlg">
+    <h2>QR을 찍고 여행지를 골라요!</h2>
+    <p>휴대폰 카메라로 찍으면 선택 화면이 열려요</p>
+    <div class="qr" id="qr"></div>
+    <div class="code" id="qrCode"></div>
+    <div class="url" id="qrUrl"></div>
+    <div class="actions">
+      <button class="btn" id="copyBtn">링크 복사</button>
+      <button class="btn primary" id="qrClose">닫기</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="askDlg">
+  <div class="dlg">
+    <h2 id="askTitle">확인</h2>
+    <p id="askText"></p>
+    <div class="actions" style="margin-top:20px">
+      <button class="btn" id="askNo">취소</button>
+      <button class="btn primary" id="askYes">확인</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="assets/regions.js"></script>
+<script src="assets/api.js"></script>
+<script src="assets/teacher.js"></script>
+</body>
+</html>
