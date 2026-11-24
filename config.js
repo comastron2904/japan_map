@@ -3,7 +3,7 @@
 // (service_role / secret 키는 절대 넣지 마세요!)
 // 두 값을 비워 두면 "데모 모드"로 동작합니다: 같은 브라우저의 탭끼리만 공유돼요.
 window.APP_CONFIG = {
-  SUPABASE_URL: https://ifamhbnvtelybjchtjex.supabase.co"",       // 예: "https://abcdefghijk.supabase.co"
+  SUPABASE_URL: "https://ifamhbnvtelybjchtjex.supabase.co",       // 예: "https://abcdefghijk.supabase.co"
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmYW1oYm52dGVseWJqY2h0amV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0OTYxMzksImV4cCI6MjExMTA3MjEzOX0.G9zbGF7tPvw-T8HuJUNdVCaM1KUvlBrnhcAa-faUzb8",  // 예: "eyJhbGciOi..." 또는 "sb_publishable_..."
   TITLE: "우리 반 일본 여행지 지도"
 };
